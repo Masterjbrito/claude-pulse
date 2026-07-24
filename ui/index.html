@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<title>Claude Pulse</title>
+<style>
+  :root{
+    --bg:#16130F; --panel:#1E1913; --line:#2E2721;
+    --amber:#FFB454; --amber-dim:#8A6B3F; --ink:#F2E8DA; --mut:#9A8C78;
+    --hot:#FF6A4D;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;user-select:none}
+  html,body{background:var(--bg);color:var(--ink);overflow:hidden;
+    font:12px "Segoe UI",system-ui,sans-serif}
+  .mono{font-family:"Cascadia Mono","JetBrains Mono",Consolas,monospace;
+    font-variant-numeric:tabular-nums}
+
+  #app{padding:14px 16px 12px;cursor:default}
+
+  /* header */
+  .hdr{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);
+    box-shadow:0 0 8px var(--amber)}
+  @media (prefers-reduced-motion: no-preference){
+    .dot{animation:pulse 2.4s ease-in-out infinite}
+    @keyframes pulse{50%{opacity:.35;box-shadow:0 0 2px var(--amber)}}
+  }
+  .hdr .t{font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--mut)}
+  .hdr .clock{margin-left:auto;font-size:10px;color:var(--amber-dim)}
+  .hdr .x{color:var(--mut);cursor:pointer;font-size:13px;line-height:1;padding:2px 4px}
+  .hdr .x:hover{color:var(--hot)}
+
+  /* compact row: big number + sparkline */
+  .row{display:flex;align-items:flex-end;gap:14px;margin-bottom:12px}
+  .big{font-size:34px;line-height:1;color:var(--amber);
+    text-shadow:0 0 14px rgba(255,180,84,.28)}
+  .big small{font-size:15px;color:var(--amber-dim)}
+  .lbl{font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut);margin-top:4px}
+  .spark{flex:1;display:flex;align-items:flex-end;gap:2px;height:38px;padding-bottom:2px}
+  .spark i{flex:1;background:var(--amber-dim);border-radius:1px;min-height:2px;opacity:.55}
+  .spark i.today{background:var(--amber);opacity:1}
+
+  /* signature: VU meters */
+  .vu{margin-bottom:8px}
+  .vu .top{display:flex;justify-content:space-between;font-size:9px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-bottom:3px}
+  .vu .pct{color:var(--ink)}
+  .segs{display:flex;gap:2px;height:9px}
+  .segs i{flex:1;background:var(--panel);border-radius:1px}
+  .segs i.on{background:var(--amber)}
+  .segs i.on.hot{background:var(--hot);box-shadow:0 0 6px rgba(255,106,77,.5)}
+  .vu .sub{font-size:9px;color:var(--amber-dim);margin-top:2px;text-align:right}
+  .nolim{font-size:9px;color:var(--mut);font-style:italic;margin:4px 0 8px}
+
+  /* expanded */
+  #more{display:none;border-top:1px solid var(--line);margin-top:10px;padding-top:10px}
+  #more.open{display:block}
+  .grid2{display:flex;gap:10px;margin-bottom:10px}
+  .card{flex:1;background:var(--panel);border-radius:6px;padding:8px 10px}
+  .card .v{font-size:17px;color:var(--ink)}
+  .card .k{font-size:8.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--mut);margin-top:2px}
+  table{width:100%;border-collapse:collapse;font-size:11px}
+  th{font-size:8.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--mut);
+    text-align:right;font-weight:400;padding:2px 0}
+  th:first-child,td:first-child{text-align:left}
+  td{text-align:right;padding:3px 0;border-top:1px solid var(--line);color:var(--ink)}
+  td.c{color:var(--amber)}
+  .tok{margin-top:8px;font-size:9px;color:var(--mut);display:flex;gap:12px;justify-content:space-between}
+  .tok b{color:var(--ink);font-weight:400}
+
+  .hint{margin-top:8px;text-align:center;font-size:9px;color:var(--amber-dim);cursor:pointer;letter-spacing:.1em}
+  .hint:hover{color:var(--amber)}
+
+  .thr{width:34px;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:3px;font-size:10px;padding:1px 3px;text-align:right}
+  /* mini mode: so a % semanal */
+  body.minimode #app > :not(.hdr):not(#minipct){display:none !important}
+  body.minimode .hdr .t,body.minimode .hdr .clock,body.minimode #export,
+  body.minimode #themebtn,body.minimode #lang,body.minimode #mute{display:none}
+  body.minimode #app{padding:6px 8px}
+  #minipct{display:none}
+  body.minimode #minipct{display:block;font-size:30px;text-align:center;
+    color:var(--amber);cursor:pointer;text-shadow:0 0 12px rgba(255,180,84,.3);line-height:1.1}
+  body.minimode #minipct small{font-size:12px;color:var(--amber-dim)}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hdr">
+    <span class="dot"></span><span class="t">Claude Pulse</span>
+    <span class="clock mono" id="clock"></span>
+    <span class="x" id="export" title="Export CSV/JSON">⇩</span>
+    <span class="x" id="mini" title="Mini">▫</span>
+    <span class="x" id="mute" title="Sons"></span>
+    <span class="x" id="themebtn" title="Tema">◐</span>
+    <span class="x mono" id="lang" title="Idioma" style="font-size:9px;letter-spacing:.1em"></span>
+    <span class="x" id="quit" title="✕">✕</span>
+  </div>
+
+  <div id="minipct" class="mono" title="Claude Pulse">—</div>
+
+  <div class="row">
+    <div>
+      <div class="big mono" id="weekpct">—</div>
+      <div class="lbl" data-i18n="weekQuota"></div>
+    </div>
+    <div class="spark" id="spark"></div>
+  </div>
+
+  <div id="limits"></div>
+  <div id="forecast" class="nolim" style="display:none"></div>
+
+  <div id="more">
+    <div class="grid2">
+      <div class="card"><div class="v mono" id="todayc">—</div><div class="k" data-i18n="todayApi"></div></div>
+      <div class="card"><div class="v mono" id="month">—</div><div class="k" data-i18n="monthApi"></div></div>
+    </div>
+    <table>
+      <thead><tr><th data-i18n="modelMonth"></th><th>In</th><th>Out</th><th>Cache</th><th>$</th></tr></thead>
+      <tbody id="models"></tbody>
+    </table>
+    <div class="tok" id="tok"></div>
+    <table style="margin-top:10px">
+      <thead><tr><th data-i18n="projMonth"></th><th style="width:70px">$</th><th style="width:90px"></th></tr></thead>
+      <tbody id="projects"></tbody>
+    </table>
+    <div class="lbl" style="margin-top:10px" data-i18n="weeks8"></div>
+    <div class="spark" id="weeks" style="height:30px;margin-top:4px"></div>
+    <div class="tok" style="margin-top:10px;align-items:center">
+      <span data-i18n="alerts"></span>
+      <b><input id="th1" type="number" min="1" max="99" class="mono thr"> %</b>
+      <b><input id="th2" type="number" min="2" max="100" class="mono thr"> %</b>
+      <span class="mono" id="ver" style="margin-left:auto"></span>
+    </div>
+    <div id="upd" style="display:none;margin-top:6px;text-align:center;font-size:9px">
+      <a id="updlink" href="#" style="color:var(--hot)"></a>
+    </div>
+  </div>
+
+  <div class="hint" id="toggle">▾ detalhe</div>
+</div>
+
+<script>
+const SEGS = 24, H_COMPACT = 288, H_FULL = 860;
+let open = false, extraH = 0;
+
+/* ---------- i18n ---------- */
+const I18N = {
+  pt: {weekQuota:'quota semanal usada', todayApi:'hoje · equiv. API', monthApi:'mês · equiv. API',
+       modelMonth:'Modelo (mês)', projMonth:'Projeto (mês)', detail:'▾ detalhe', compact:'▴ compacto',
+       session:'Sessão 5h', weekAll:'Semana · todos', week:'Semana', resets:'renova',
+       loading:'a carregar…', gettingLimits:'a obter limites…', noUse:'sem uso este mês', today:'hoje',
+       runsOut:'a este ritmo, esgota', weeks8:'últimas 8 semanas', alertT:'Alerta de quota',
+       alerts:'alertas', exported:'Exportado para'},
+  en: {weekQuota:'weekly quota used', todayApi:'today · API equiv.', monthApi:'month · API equiv.',
+       modelMonth:'Model (month)', projMonth:'Project (month)', detail:'▾ details', compact:'▴ compact',
+       session:'5h session', weekAll:'Week · all', week:'Week', resets:'resets',
+       loading:'loading…', gettingLimits:'fetching limits…', noUse:'no usage this month', today:'today',
+       runsOut:'at this pace, runs out', weeks8:'last 8 weeks', alertT:'Quota alert',
+       alerts:'alerts', exported:'Exported to'},
+  es: {weekQuota:'cuota semanal usada', todayApi:'hoy · equiv. API', monthApi:'mes · equiv. API',
+       modelMonth:'Modelo (mes)', projMonth:'Proyecto (mes)', detail:'▾ detalle', compact:'▴ compacto',
+       session:'Sesión 5h', weekAll:'Semana · todos', week:'Semana', resets:'renueva',
+       loading:'cargando…', gettingLimits:'obteniendo límites…', noUse:'sin uso este mes', today:'hoy',
+       runsOut:'a este ritmo, se agota', weeks8:'últimas 8 semanas', alertT:'Alerta de cuota',
+       alerts:'alertas', exported:'Exportado a'},
+  fr: {weekQuota:'quota hebdo utilisé', todayApi:'aujourd\'hui · équiv. API', monthApi:'mois · équiv. API',
+       modelMonth:'Modèle (mois)', projMonth:'Projet (mois)', detail:'▾ détails', compact:'▴ compact',
+       session:'Session 5h', weekAll:'Semaine · tous', week:'Semaine', resets:'réinit.',
+       loading:'chargement…', gettingLimits:'récupération des limites…', noUse:'aucun usage ce mois', today:'auj.',
+       runsOut:'à ce rythme, épuisé', weeks8:'8 dernières semaines', alertT:'Alerte quota',
+       alerts:'alertes', exported:'Exporté vers'},
+  de: {weekQuota:'Wochenkontingent genutzt', todayApi:'heute · API-Äquiv.', monthApi:'Monat · API-Äquiv.',
+       modelMonth:'Modell (Monat)', projMonth:'Projekt (Monat)', detail:'▾ Details', compact:'▴ kompakt',
+       session:'5h-Sitzung', weekAll:'Woche · alle', week:'Woche', resets:'reset',
+       loading:'lädt…', gettingLimits:'Limits werden geladen…', noUse:'keine Nutzung diesen Monat', today:'heute',
+       runsOut:'bei diesem Tempo, erschöpft', weeks8:'letzte 8 Wochen', alertT:'Kontingent-Alarm',
+       alerts:'Alarme', exported:'Exportiert nach'},
+};
+const LANGS = Object.keys(I18N);
+let lang = localStorage.getItem('cp-lang')
+  || (LANGS.includes(navigator.language.slice(0,2)) ? navigator.language.slice(0,2) : 'en');
+const t = k => (I18N[lang] || I18N.en)[k] || k;
+
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el => el.textContent = t(el.dataset.i18n));
+  $('lang').textContent = lang.toUpperCase();
+  $('toggle').textContent = open ? t('compact') : t('detail');
+}
+
+/* ---------- temas ---------- */
+const THEMES = {
+  amber:   {bg:'#16130F', panel:'#1E1913', line:'#2E2721', accent:'#FFB454', dim:'#8A6B3F', ink:'#F2E8DA', mut:'#9A8C78', hot:'#FF6A4D'},
+  matrix:  {bg:'#0C120C', panel:'#131B13', line:'#1F2B1F', accent:'#5CE87B', dim:'#3A7A4A', ink:'#DFF2E2', mut:'#7FA187', hot:'#FF6A4D'},
+  ice:     {bg:'#0E1218', panel:'#151B24', line:'#222B38', accent:'#6FC3FF', dim:'#3E6C8F', ink:'#E4EDF6', mut:'#8AA0B5', hot:'#FF6A4D'},
+  magma:   {bg:'#150F12', panel:'#1D1518', line:'#2C2126', accent:'#FF7597', dim:'#8F4258', ink:'#F5E6EB', mut:'#A28A93', hot:'#FFC24D'},
+  paper:   {bg:'#F4F0E8', panel:'#EAE4D8', line:'#D8D0C0', accent:'#B4541E', dim:'#C9A183', ink:'#2A241C', mut:'#7A6F60', hot:'#C22F2F'},
+};
+let theme = localStorage.getItem('cp-theme') || 'amber';
+function applyTheme(){
+  const c = THEMES[theme] || THEMES.amber;
+  const r = document.documentElement.style;
+  r.setProperty('--bg', c.bg); r.setProperty('--panel', c.panel); r.setProperty('--line', c.line);
+  r.setProperty('--amber', c.accent); r.setProperty('--amber-dim', c.dim);
+  r.setProperty('--ink', c.ink); r.setProperty('--mut', c.mut); r.setProperty('--hot', c.hot);
+}
+
+const $ = id => document.getElementById(id);
+const fmt = v => { const [i,d] = v.toFixed(2).split('.'); return `$${i}<small>.${d}</small>`; };
+const kf = x => { const n = Number(x) || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'k' : String(n); };
+
+/* ---------- sons de alerta ---------- */
+let muted = localStorage.getItem('cp-muted') === '1';
+// thresholds configuraveis (defaults 80/95)
+let TH1 = +(localStorage.getItem('cp-th1') || 80), TH2 = +(localStorage.getItem('cp-th2') || 95);
+const alerted = {};   // kind -> ultimo patamar alertado
+function beep(urgent){
+  if (muted) return;
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const notes = urgent ? [880, 660, 880, 660, 880] : [660, 880];
+    notes.forEach((f, i) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = f;
+      g.gain.setValueAtTime(0.0001, ctx.currentTime + i*0.18);
+      g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + i*0.18 + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + i*0.18 + 0.15);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(ctx.currentTime + i*0.18); o.stop(ctx.currentTime + i*0.18 + 0.16);
+    });
+  } catch(e){}
+}
+function checkAlerts(limits){
+  for (const lim of limits){
+    const k = lim.kind + (lim.model || '');
+    const level = lim.pct >= TH2 ? 95 : lim.pct >= TH1 ? 80 : 0;
+    if (level > (alerted[k] || 0)) {
+      alerted[k] = level;
+      beep(level === 95);
+      // toast nativo + soundbite local (prioridade) ou frase falada
+      try { pywebview.api.notify(t('alertT'), `${limName(lim)}: ${Math.round(lim.pct)}%`); } catch(e){}
+      (async () => {
+        let played = false;
+        if (!muted) { try { played = await pywebview.api.play_alert(level); } catch(e){} }
+        if (!played) setTimeout(() => say(pick(ph(level === 95 ? 'warn95' : 'warn80'))), 600);
+      })();
+    }
+    if (level === 0) alerted[k] = 0;   // reset quando a janela renova
+  }
+}
+
+/* ---------- voz: seleção da melhor voz nativa ---------- */
+const LOCALES = {pt:'pt-PT', en:'en-US', es:'es-ES', fr:'fr-FR', de:'de-DE'};
+let voices = [];
+if (window.speechSynthesis){
+  const load = () => { voices = speechSynthesis.getVoices(); };
+  load(); speechSynthesis.onvoiceschanged = load;
+}
+function pickVoice(locale){
+  const base = locale.slice(0,2);
+  const cand = voices.filter(v => v.lang.replace('_','-').toLowerCase().startsWith(base));
+  if (!cand.length) return null;
+  const score = v => {
+    let s = 0;
+    if (v.lang.replace('_','-').toLowerCase() === locale.toLowerCase()) s += 4;
+    if (/natural|online|neural/i.test(v.name)) s += 8;      // vozes neurais do Edge
+    if (/microsoft/i.test(v.name)) s += 2;
+    return s;
+  };
+  return cand.sort((a,b) => score(b)-score(a))[0];
+}
+async function say(text){
+  if (muted) return;
+  // 1º: voz neural Microsoft via backend (edge-tts) — qualidade nativa garantida
+  try { const ok = await pywebview.api.speak(text, lang); if (ok) return; } catch(e){}
+  // fallback: speechSynthesis local
+  if (!window.speechSynthesis) return;
+  const locale = LOCALES[lang] || 'en-US';
+  const u = new SpeechSynthesisUtterance(text);
+  const v = pickVoice(locale);
+  if (v) u.voice = v;
+  u.lang = locale; u.rate = 1.03; u.volume = 0.9;
+  speechSynthesis.speak(u);
+}
+const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ---------- frases dinâmicas ---------- */
+const PHRASES = {
+  pt: {
+    hello: [
+      (w,s)=>`Bom dia, senhor. Quota semanal nos ${w} por cento, sessão nos ${s}. Todos os sistemas operacionais.`,
+      (w,s)=>`Às suas ordens. ${w} por cento da semana consumidos. Combustível de sessão: ${s} por cento.`,
+      (w,s)=>`Sistemas online. Semana a ${w} por cento, sessão a ${s}. Vamos começar?`,
+      (w,s)=>`Bem-vindo de volta, senhor. Diagnóstico completo: quota a ${w} por cento. Dentro dos parâmetros aceitáveis.`,
+    ],
+    helloHot: [
+      (w,s)=>`Alerta amarelo, comandante: já vais em ${w} por cento da semana. Modera lá esses prompts.`,
+      (w,s)=>`Bem-vindo de volta. Más notícias: ${w} por cento da quota semanal já era.`,
+    ],
+    warn80: [
+      'Houston, temos um problema: oitenta por cento da quota consumidos.',
+      'Alerta amarelo: o tanque está a três quartos. Escolhe bem as batalhas.',
+      'Oitenta por cento. Repito, oitenta por cento. Isto não é um simulacro.',
+      'Dôh! Oitenta por cento da quota já foi.',
+      'Cuidado... o Claude está a ficar sem gasolina.',
+    ],
+    warn95: [
+      'Mayday, mayday! Noventa e cinco por cento! Abandona os prompts não essenciais!',
+      'Situação crítica: quota quase esgotada. Reza para que renove depressa.',
+      'Noventa e cinco por cento. Foi bonita a amizade. Até à renovação.',
+      'Finish him!... Fatality. A tua quota foi brutalmente eliminada.',
+      'Game over, man! Game over! Noventa e cinco por cento!',
+      'Hasta la vista, quota. Voltarei... na renovação.',
+    ],
+  },
+  en: {
+    hello: [
+      (w,s)=>`Good day, sir. Weekly quota at ${w} percent, session at ${s}. All systems operational.`,
+      (w,s)=>`At your service, sir. ${w} percent of the week consumed. Session fuel: ${s} percent.`,
+      (w,s)=>`Systems online. Week at ${w} percent, session at ${s}. Shall we begin?`,
+      (w,s)=>`Welcome back, sir. Running diagnostics... quota at ${w} percent. All within acceptable parameters.`,
+    ],
+    helloHot: [
+      (w,s)=>`Sir, I must advise caution: ${w} percent of the weekly quota is already spent.`,
+      (w,s)=>`Welcome back, sir. Regrettably, ${w} percent of your weekly quota is history.`,
+    ],
+    warn80: [
+      'Houston, we have a problem: eighty percent of quota consumed.',
+      'Yellow alert: tank is three quarters empty. Choose your battles.',
+      'Eighty percent. I repeat, eighty percent. This is not a drill.',
+      "D'oh! Eighty percent of quota gone already.",
+      'Careful... Claude is running low on fuel.',
+    ],
+    warn95: [
+      'Mayday, mayday! Ninety five percent! Abort all non essential prompts!',
+      'Critical: quota nearly depleted. Pray for a fast reset.',
+      'Ninety five percent. It was a beautiful friendship. See you at reset.',
+      'Finish him!... Fatality. Your quota has been brutally destroyed.',
+      'Game over, man! Game over! Ninety five percent!',
+      'Hasta la vista, quota. I will be back... at reset.',
+    ],
+  },
+  es: {
+    hello: [(w,s)=>`Buenos días, comandante. Cuota semanal al ${w} por ciento, sesión al ${s}. Todo nominal.`],
+    helloHot: [(w,s)=>`Alerta amarilla: ya llevas ${w} por ciento de la semana. Tranquilo con esos prompts.`],
+    warn80: ['Houston, tenemos un problema: ochenta por ciento de la cuota consumida.'],
+    warn95: ['¡Mayday, mayday! ¡Noventa y cinco por ciento! ¡Aborta los prompts no esenciales!'],
+  },
+  fr: {
+    hello: [(w,s)=>`Bonjour commandant. Quota hebdo à ${w} pour cent, session à ${s}. Tout est nominal.`],
+    helloHot: [(w,s)=>`Alerte jaune : déjà ${w} pour cent de la semaine. Doucement sur les prompts.`],
+    warn80: ['Houston, nous avons un problème : quatre-vingts pour cent du quota consommés.'],
+    warn95: ['Mayday, mayday ! Quatre-vingt-quinze pour cent ! Abandonnez les prompts non essentiels !'],
+  },
+  de: {
+    hello: [(w,s)=>`Guten Tag, Commander. Wochenkontingent bei ${w} Prozent, Sitzung bei ${s}. Alles nominal.`],
+    helloHot: [(w,s)=>`Gelber Alarm: schon ${w} Prozent der Woche verbraucht. Sachte mit den Prompts.`],
+    warn80: ['Houston, wir haben ein Problem: achtzig Prozent des Kontingents verbraucht.'],
+    warn95: ['Mayday, Mayday! Fünfundneunzig Prozent! Alle nicht wesentlichen Prompts abbrechen!'],
+  },
+};
+const ph = k => (PHRASES[lang] || PHRASES.en)[k] || PHRASES.en[k];
+
+let spoken = false;
+function speakSummary(limits){
+  if (spoken || muted) return;
+  const wk = limits.find(l=>l.kind==='weekly_all'), se = limits.find(l=>l.kind==='session');
+  if (!wk || !se) return;
+  spoken = true;
+  const w = Math.round(wk.pct), s = Math.round(se.pct);
+  // pequena espera para as vozes neurais carregarem
+  setTimeout(() => say(pick(ph(w >= 70 ? 'helloHot' : 'hello'))(w, s)), 800);
+}
+
+function limName(lim){
+  if (lim.kind === 'session') return t('session');
+  if (lim.kind === 'weekly_all') return t('weekAll');
+  if (lim.model) return `${t('week')} · ${lim.model}`;
+  return lim.kind || '?';
+}
+
+function vu(lim){
+  if(!lim) return '';
+  const name = esc(limName(lim));
+  const on = Math.round(SEGS * Math.min(lim.pct,100) / 100);
+  let segs = '';
+  for(let i=0;i<SEGS;i++){
+    const hot = lim.pct >= 80 && i >= SEGS*0.8;
+    segs += `<i class="${i<on?'on':''} ${i<on&&hot?'hot':''}"></i>`;
+  }
+  let sub = '';
+  if(lim.resets_at){
+    const d = new Date(lim.resets_at);
+    sub = `${t('resets')} ${d.toLocaleDateString(undefined,{day:'2-digit',month:'2-digit'})} ${d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}`;
+  }
+  return `<div class="vu"><div class="top"><span>${name}</span>
+    <span class="pct mono">${lim.pct}%</span></div>
+    <div class="segs">${segs}</div><div class="sub">${sub}</div></div>`;
+}
+
+let loaded = false;
+async function refresh(){
+  let s;
+  try { s = await pywebview.api.get_stats(); }
+  catch(e){
+    $('limits').innerHTML = `<div class="nolim">${t('loading')} (${String(e).slice(0,60)})</div>`;
+    if(!loaded) setTimeout(refresh, 2000);
+    return;
+  }
+  loaded = true;
+  lastOk = Date.now();
+  const wkLim = s.limits ? s.limits.find(l => l.kind === 'weekly_all') : null;
+  const wk = wkLim ? wkLim.pct : null;
+  $('minipct').innerHTML = wk !== null ? `${Math.round(wk)}<small>%</small>` : '—';
+  $('minipct').style.color = wk >= TH1 ? 'var(--hot)' : 'var(--amber)';
+  if (s.version) $('ver').textContent = 'v' + s.version;
+  if (s.update) {
+    $('upd').style.display = 'block';
+    $('updlink').textContent = `⬆ v${s.update.latest} available — github.com/${'Masterjbrito/claude-pulse'}`;
+    $('updlink').onclick = e => { e.preventDefault(); };
+  }
+  $('weekpct').innerHTML = wk !== null
+    ? `${Math.round(wk)}<small>%</small>` : '—';
+  $('weekpct').style.color = wk >= 80 ? 'var(--hot)' : 'var(--amber)';
+  $('clock').textContent = s.now;
+  $('todayc').innerHTML = fmt(s.today);
+  $('month').innerHTML = fmt(s.month);
+
+  const max = Math.max(...s.days.map(d=>d.c), 0.01);
+  $('spark').innerHTML = s.days.map((d,i) =>
+    `<i class="${i===s.days.length-1?'today':''}" style="height:${Math.max(5,d.c/max*100)}%" title="${d.d}: $${d.c}"></i>`).join('');
+
+  if (s.limits) {
+    $('limits').innerHTML = s.limits.map(vu).join('');
+    checkAlerts(s.limits);
+    speakSummary(s.limits);
+    const eh = Math.max(0, s.limits.length - 2) * 46;
+    if (eh !== extraH) { extraH = eh; pywebview.api.resize(372, (open ? H_FULL : H_COMPACT) + extraH); }
+  } else {
+    $('limits').innerHTML = `<div class="nolim">${t('gettingLimits')}</div>`;
+    setTimeout(refresh, 15000);   // re-tenta sem martelar o endpoint
+  }
+
+  $('models').innerHTML = s.models.map(m =>
+    `<tr><td>${esc(m.name)}</td><td class="mono">${kf(m.in)}</td><td class="mono">${kf(m.out)}</td>
+     <td class="mono">${kf(m.cw+m.cr)}</td><td class="mono c">$${m.cost.toFixed(2)}</td></tr>`).join('')
+    || `<tr><td colspan="5" style="color:var(--mut)">${t('noUse')}</td></tr>`;
+
+  // previsao de esgotamento
+  if (s.forecast) {
+    const d = new Date(s.forecast);
+    $('forecast').style.display = 'block';
+    $('forecast').innerHTML = `⚠ ${t('runsOut')} <b style="color:var(--hot)">${d.toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'2-digit'})} ${d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</b>`;
+  } else {
+    $('forecast').style.display = 'none';
+  }
+
+  // historico 8 semanas
+  const wmax = Math.max(...(s.weeks||[]).map(w=>w.c), 0.01);
+  $('weeks').innerHTML = (s.weeks||[]).map((w,i) =>
+    `<i class="${i===(s.weeks.length-1)?'today':''}" style="height:${Math.max(5,w.c/wmax*100)}%" title="${esc(w.w)}: $${w.c}"></i>`).join('');
+
+  const pmax = Math.max(...(s.projects||[]).map(p=>p.cost), 0.01);
+  $('projects').innerHTML = (s.projects||[]).map(p =>
+    `<tr><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p.name)}</td>
+     <td class="mono c">$${p.cost.toFixed(2)}</td>
+     <td><div style="height:5px;border-radius:2px;background:var(--amber-dim);width:${Math.max(3,p.cost/pmax*100)}%"></div></td></tr>`).join('');
+
+  const tk = s.today_tokens;
+  $('tok').innerHTML = `<span>${t('today')}</span><b>in ${kf(tk.in)}</b><b>out ${kf(tk.out)}</b>
+    <b>cache-w ${kf(tk.cw)}</b><b>cache-r ${kf(tk.cr)}</b>`;
+}
+
+$('toggle').onclick = () => {
+  open = !open;
+  $('more').classList.toggle('open', open);
+  $('toggle').textContent = open ? t('compact') : t('detail');
+  pywebview.api.resize(372, (open ? H_FULL : H_COMPACT) + extraH);
+};
+$('quit').onclick = () => pywebview.api.quit();
+$('lang').onclick = () => {
+  lang = LANGS[(LANGS.indexOf(lang) + 1) % LANGS.length];
+  localStorage.setItem('cp-lang', lang);
+  applyLang(); refresh();
+};
+$('themebtn').onclick = () => {
+  const names = Object.keys(THEMES);
+  theme = names[(names.indexOf(theme) + 1) % names.length];
+  localStorage.setItem('cp-theme', theme);
+  applyTheme();
+};
+function paintMute(){ $('mute').textContent = muted ? '🔕' : '🔔'; $('mute').style.fontSize = '11px'; }
+$('mute').onclick = () => {
+  muted = !muted;
+  localStorage.setItem('cp-muted', muted ? '1' : '0');
+  paintMute();
+  if (!muted) beep(false);   // feedback ao reativar
+};
+// thresholds
+$('th1').value = TH1; $('th2').value = TH2;
+$('th1').onchange = () => { TH1 = Math.min(99, Math.max(1, +$('th1').value || 80)); localStorage.setItem('cp-th1', TH1); };
+$('th2').onchange = () => { TH2 = Math.min(100, Math.max(TH1+1, +$('th2').value || 95)); $('th2').value = TH2; localStorage.setItem('cp-th2', TH2); };
+
+// export CSV/JSON
+$('export').onclick = async () => {
+  try {
+    const dest = await pywebview.api.export_data();
+    pywebview.api.notify('Claude Pulse', `${t('exported')} ${dest}`);
+  } catch(e){}
+};
+
+// mini mode
+const H_MINI = 92;
+let mini = localStorage.getItem('cp-mini') === '1';
+function applyMini(){
+  document.body.classList.toggle('minimode', mini);
+  localStorage.setItem('cp-mini', mini ? '1' : '0');
+  pywebview.api.resize(mini ? 120 : 372, mini ? H_MINI : (open ? H_FULL : H_COMPACT) + extraH);
+}
+$('mini').onclick = () => { mini = true; applyMini(); };
+$('minipct').onclick = () => { mini = false; applyMini(); };
+
+applyTheme(); applyLang(); paintMute();
+if (mini) window.addEventListener('pywebviewready', () => setTimeout(applyMini, 300));
+
+/* ---------- modo demo (?demo=1): dados fictícios p/ screenshots e dev sem backend ---------- */
+if (location.search.includes('demo')) {
+  const DEMO = {
+    today: 214.37, month: 8412.90, total: 15211.44, now: '14:07', version: '1.2.0', update: null,
+    today_tokens: {in: 41200, out: 512000, cw: 3_100_000, cr: 96_400_000},
+    days: Array.from({length:14},(_,i)=>({d:`2026-07-${(i+9)}`, c: 120+((i*97)%390)})),
+    weeks: Array.from({length:8},(_,i)=>({w:`2026-W${23+i}`, c: 1400+((i*631)%2600)})),
+    models: [
+      {name:'Opus', cost:6120.11, in:1_200_000, out:7_800_000, cw:3_000_000_000, cr:900_000_000},
+      {name:'Fable', cost:1704.62, in:700_000, out:2_600_000, cw:700_000_000, cr:220_000_000},
+      {name:'Sonnet', cost:498.17, in:520_000, out:410_000, cw:280_000_000, cr:80_000_000},
+      {name:'Haiku', cost:90.00, in:9_000, out:6_000, cw:12_000_000, cr:2_000_000}],
+    projects: [
+      {name:'orbital-dashboard', cost:3411.02},{name:'atlas-api', cost:1922.55},
+      {name:'nebula-app', cost:1544.19},{name:'quantum-cli', cost:801.44},{name:'pixel-forge', cost:433.70}],
+    limits: [
+      {kind:'session', model:null, pct:37, resets_at:'2026-07-24T19:00:00Z'},
+      {kind:'weekly_all', model:null, pct:63, resets_at:'2026-07-28T22:00:00Z'},
+      {kind:'weekly_scoped', model:'Fable', pct:31, resets_at:'2026-07-28T22:00:00Z'}],
+    forecast: '2026-07-27T09:40:00Z',
+  };
+  window.pywebview = {api: {
+    get_stats: async () => DEMO, resize: async () => {}, quit: () => {},
+    speak: async () => true, play_alert: async () => true, notify: async () => true,
+    export_data: async () => 'C:/Users/demo/Downloads',
+  }};
+  setTimeout(() => window.dispatchEvent(new Event('pywebviewready')), 50);
+}
+
+let lastOk = 0;
+window.addEventListener('pywebviewready', () => {
+  refresh();
+  setInterval(refresh, 30000);
+});
+// fallback caso o evento pywebviewready já tenha disparado ou não dispare
+setTimeout(() => { if(!loaded) refresh(); }, 1500);
+
+// anti-sleep: heartbeat do backend + retoma de foco/visibilidade forçam refresh se os dados estiverem velhos
+window.__wake = () => { if (Date.now() - lastOk > 45000) refresh(); };
+document.addEventListener('visibilitychange', () => { if (!document.hidden) window.__wake(); });
+window.addEventListener('focus', () => window.__wake());
+</script>
+</body>
+</html>
