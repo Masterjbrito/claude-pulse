@@ -92,6 +92,7 @@
   </div>
 
   <div id="limits"></div>
+  <div id="forecast" class="nolim" style="display:none"></div>
 
   <div id="more">
     <div class="grid2">
@@ -107,13 +108,15 @@
       <thead><tr><th data-i18n="projMonth"></th><th style="width:70px">$</th><th style="width:90px"></th></tr></thead>
       <tbody id="projects"></tbody>
     </table>
+    <div class="lbl" style="margin-top:10px" data-i18n="weeks8"></div>
+    <div class="spark" id="weeks" style="height:30px;margin-top:4px"></div>
   </div>
 
   <div class="hint" id="toggle">▾ detalhe</div>
 </div>
 
 <script>
-const SEGS = 24, H_COMPACT = 268, H_FULL = 790;
+const SEGS = 24, H_COMPACT = 288, H_FULL = 860;
 let open = false, extraH = 0;
 
 /* ---------- i18n ---------- */
@@ -121,23 +124,28 @@ const I18N = {
   pt: {weekQuota:'quota semanal usada', todayApi:'hoje · equiv. API', monthApi:'mês · equiv. API',
        modelMonth:'Modelo (mês)', projMonth:'Projeto (mês)', detail:'▾ detalhe', compact:'▴ compacto',
        session:'Sessão 5h', weekAll:'Semana · todos', week:'Semana', resets:'renova',
-       loading:'a carregar…', gettingLimits:'a obter limites…', noUse:'sem uso este mês', today:'hoje'},
+       loading:'a carregar…', gettingLimits:'a obter limites…', noUse:'sem uso este mês', today:'hoje',
+       runsOut:'a este ritmo, esgota', weeks8:'últimas 8 semanas', alertT:'Alerta de quota'},
   en: {weekQuota:'weekly quota used', todayApi:'today · API equiv.', monthApi:'month · API equiv.',
        modelMonth:'Model (month)', projMonth:'Project (month)', detail:'▾ details', compact:'▴ compact',
        session:'5h session', weekAll:'Week · all', week:'Week', resets:'resets',
-       loading:'loading…', gettingLimits:'fetching limits…', noUse:'no usage this month', today:'today'},
+       loading:'loading…', gettingLimits:'fetching limits…', noUse:'no usage this month', today:'today',
+       runsOut:'at this pace, runs out', weeks8:'last 8 weeks', alertT:'Quota alert'},
   es: {weekQuota:'cuota semanal usada', todayApi:'hoy · equiv. API', monthApi:'mes · equiv. API',
        modelMonth:'Modelo (mes)', projMonth:'Proyecto (mes)', detail:'▾ detalle', compact:'▴ compacto',
        session:'Sesión 5h', weekAll:'Semana · todos', week:'Semana', resets:'renueva',
-       loading:'cargando…', gettingLimits:'obteniendo límites…', noUse:'sin uso este mes', today:'hoy'},
+       loading:'cargando…', gettingLimits:'obteniendo límites…', noUse:'sin uso este mes', today:'hoy',
+       runsOut:'a este ritmo, se agota', weeks8:'últimas 8 semanas', alertT:'Alerta de cuota'},
   fr: {weekQuota:'quota hebdo utilisé', todayApi:'aujourd\'hui · équiv. API', monthApi:'mois · équiv. API',
        modelMonth:'Modèle (mois)', projMonth:'Projet (mois)', detail:'▾ détails', compact:'▴ compact',
        session:'Session 5h', weekAll:'Semaine · tous', week:'Semaine', resets:'réinit.',
-       loading:'chargement…', gettingLimits:'récupération des limites…', noUse:'aucun usage ce mois', today:'auj.'},
+       loading:'chargement…', gettingLimits:'récupération des limites…', noUse:'aucun usage ce mois', today:'auj.',
+       runsOut:'à ce rythme, épuisé', weeks8:'8 dernières semaines', alertT:'Alerte quota'},
   de: {weekQuota:'Wochenkontingent genutzt', todayApi:'heute · API-Äquiv.', monthApi:'Monat · API-Äquiv.',
        modelMonth:'Modell (Monat)', projMonth:'Projekt (Monat)', detail:'▾ Details', compact:'▴ kompakt',
        session:'5h-Sitzung', weekAll:'Woche · alle', week:'Woche', resets:'reset',
-       loading:'lädt…', gettingLimits:'Limits werden geladen…', noUse:'keine Nutzung diesen Monat', today:'heute'},
+       loading:'lädt…', gettingLimits:'Limits werden geladen…', noUse:'keine Nutzung diesen Monat', today:'heute',
+       runsOut:'bei diesem Tempo, erschöpft', weeks8:'letzte 8 Wochen', alertT:'Kontingent-Alarm'},
 };
 const LANGS = Object.keys(I18N);
 let lang = localStorage.getItem('cp-lang')
@@ -197,7 +205,8 @@ function checkAlerts(limits){
     if (level > (alerted[k] || 0)) {
       alerted[k] = level;
       beep(level === 95);
-      // soundbite local (Fatality, D'oh, ...) tem prioridade; senão frase falada
+      // toast nativo + soundbite local (prioridade) ou frase falada
+      try { pywebview.api.notify(t('alertT'), `${limName(lim)}: ${Math.round(lim.pct)}%`); } catch(e){}
       (async () => {
         let played = false;
         if (!muted) { try { played = await pywebview.api.play_alert(level); } catch(e){} }
@@ -396,6 +405,20 @@ async function refresh(){
     `<tr><td>${esc(m.name)}</td><td class="mono">${kf(m.in)}</td><td class="mono">${kf(m.out)}</td>
      <td class="mono">${kf(m.cw+m.cr)}</td><td class="mono c">$${m.cost.toFixed(2)}</td></tr>`).join('')
     || `<tr><td colspan="5" style="color:var(--mut)">${t('noUse')}</td></tr>`;
+
+  // previsao de esgotamento
+  if (s.forecast) {
+    const d = new Date(s.forecast);
+    $('forecast').style.display = 'block';
+    $('forecast').innerHTML = `⚠ ${t('runsOut')} <b style="color:var(--hot)">${d.toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'2-digit'})} ${d.toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</b>`;
+  } else {
+    $('forecast').style.display = 'none';
+  }
+
+  // historico 8 semanas
+  const wmax = Math.max(...(s.weeks||[]).map(w=>w.c), 0.01);
+  $('weeks').innerHTML = (s.weeks||[]).map((w,i) =>
+    `<i class="${i===(s.weeks.length-1)?'today':''}" style="height:${Math.max(5,w.c/wmax*100)}%" title="${esc(w.w)}: $${w.c}"></i>`).join('');
 
   const pmax = Math.max(...(s.projects||[]).map(p=>p.cost), 0.01);
   $('projects').innerHTML = (s.projects||[]).map(p =>

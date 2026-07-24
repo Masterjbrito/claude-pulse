@@ -14,7 +14,7 @@ import tempfile
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import requests
@@ -196,6 +196,13 @@ def _play_mp3(path: str):
         elif sys.platform == "darwin":
             import subprocess
             subprocess.run(["afplay", path], check=False)
+        else:  # Linux: primeiro leitor mp3 disponivel
+            import shutil
+            import subprocess
+            for player in (["mpg123", "-q"], ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet"], ["cvlc", "--play-and-exit", "--intf", "dummy"]):
+                if shutil.which(player[0]):
+                    subprocess.run(player + [path], check=False)
+                    break
     except Exception:
         pass
 
@@ -233,12 +240,86 @@ def _speak_worker(text: str, lang: str):
 LIMITS_CACHE = Path(__file__).parent / "limits_cache.json"
 
 
+def forecast_depletion(limits):
+    """Estima quando a quota semanal chega a 100% ao ritmo atual.
+
+    Janela semanal comeca em resets_at - 7 dias; ritmo = pct / horas decorridas.
+    Devolve ISO datetime se esgotar ANTES da renovacao, senao None.
+    """
+    try:
+        wk = next(l for l in (limits or []) if l.get("kind") == "weekly_all")
+        pct = float(wk["pct"])
+        resets = datetime.fromisoformat(wk["resets_at"])
+        start = resets - timedelta(days=7)
+        now = datetime.now(timezone.utc)
+        elapsed_h = (now - start).total_seconds() / 3600
+        if pct < 2 or elapsed_h < 1:
+            return None  # dados a menos para estimar
+        eta = start + timedelta(hours=elapsed_h * 100.0 / pct)
+        return eta.isoformat() if eta < resets else None
+    except (StopIteration, KeyError, ValueError, TypeError):
+        return None
+
+
+class Tray:
+    """Icone no system tray com a % semanal desenhada (pystray + PIL)."""
+
+    def __init__(self, on_toggle, on_quit):
+        self.icon = None
+        self._pct = None
+        self._on_toggle = on_toggle
+        self._on_quit = on_quit
+
+    def _draw(self, pct):
+        from PIL import Image, ImageDraw, ImageFont
+        img = Image.new("RGBA", (64, 64), (22, 19, 15, 255))
+        d = ImageDraw.Draw(img)
+        color = (255, 106, 77) if (pct or 0) >= 80 else (255, 180, 84)
+        d.rounded_rectangle([2, 2, 61, 61], radius=12, outline=color, width=4)
+        text = "--" if pct is None else str(int(round(pct)))
+        try:
+            font = ImageFont.truetype("consolab.ttf", 30 if len(text) < 3 else 24)
+        except OSError:
+            font = ImageFont.load_default()
+        box = d.textbbox((0, 0), text, font=font)
+        d.text(((64 - box[2] + box[0]) / 2 - box[0], (64 - box[3] + box[1]) / 2 - box[1]),
+               text, fill=color, font=font)
+        return img
+
+    def start(self):
+        try:
+            import pystray
+            self.icon = pystray.Icon(
+                "claude-pulse", self._draw(None), "Claude Pulse",
+                menu=pystray.Menu(
+                    pystray.MenuItem("Mostrar / Ocultar", lambda: self._on_toggle(), default=True),
+                    pystray.MenuItem("Sair", lambda: self._on_quit()),
+                ))
+            threading.Thread(target=self.icon.run, daemon=True).start()
+        except Exception:
+            self.icon = None
+
+    def update(self, pct):
+        if self.icon and pct is not None and pct != self._pct:
+            self._pct = pct
+            self.icon.icon = self._draw(pct)
+            self.icon.title = f"Claude Pulse — semana {pct:.0f}%"
+
+    def notify(self, title, msg):
+        try:
+            if self.icon:
+                self.icon.notify(msg, title)
+        except Exception:
+            pass
+
+
 class Api:
     def __init__(self):
         self.store = UsageStore()
         self._limits = None
         self._limits_ts = 0
         self.window = None
+        self.tray = None
         try:  # ultimo valor conhecido (sobrevive a restarts e a 429s)
             self._limits = json.loads(LIMITS_CACHE.read_text(encoding="utf-8"))
         except Exception:
@@ -260,6 +341,7 @@ class Api:
         month = now.strftime("%Y-%m")
 
         days = defaultdict(float)
+        weeks = defaultdict(float)
         projs_month = defaultdict(float)
         models_month = defaultdict(lambda: {"cost": 0.0, "in": 0, "out": 0, "cw": 0, "cr": 0})
         today_cost = month_cost = total_cost = 0.0
@@ -269,6 +351,8 @@ class Api:
             c = cost_of(r)
             total_cost += c
             days[r["day"]] += c
+            iso = datetime.strptime(r["day"], "%Y-%m-%d").isocalendar()
+            weeks[f"{iso[0]}-W{iso[1]:02d}"] += c
             if r["day"] == today:
                 today_cost += c
                 for k in today_tok:
@@ -287,6 +371,11 @@ class Api:
             self._limits_ts = time.time()
             threading.Thread(target=self._refresh_limits, daemon=True).start()
 
+        if self.tray and self._limits:
+            wk = next((l for l in self._limits if l.get("kind") == "weekly_all"), None)
+            if wk:
+                self.tray.update(wk["pct"])
+
         return {
             "today": round(today_cost, 2),
             "month": round(month_cost, 2),
@@ -300,6 +389,8 @@ class Api:
                 key=lambda x: -x["cost"]),
             "projects": [{"name": k, "cost": round(v, 2)}
                          for k, v in sorted(projs_month.items(), key=lambda x: -x[1])[:10]],
+            "weeks": [{"w": w, "c": round(c, 2)} for w, c in sorted(weeks.items())[-8:]],
+            "forecast": forecast_depletion(self._limits),
             "limits": self._limits,
             "now": now.strftime("%H:%M"),
         }
@@ -313,6 +404,11 @@ class Api:
             return False
         path = str(random.choice(options))
         threading.Thread(target=_play_mp3, args=(path,), daemon=True).start()
+        return True
+
+    def notify(self, title, msg):
+        if self.tray:
+            self.tray.notify(str(title), str(msg))
         return True
 
     def speak(self, text, lang):
@@ -343,7 +439,7 @@ def main():
         x, y = 100, 100
     win = webview.create_window(
         "Claude Pulse", str(ui),
-        width=372, height=268, x=x, y=y,
+        width=372, height=288, x=x, y=y,
         frameless=True, easy_drag=True, on_top=True,
         background_color="#16130F",
     )
@@ -364,8 +460,29 @@ def main():
     def play_alert(level):
         return api.play_alert(level)
 
-    win.expose(get_stats, resize, quit, speak, play_alert)
-    webview.start()
+    def notify(title, msg):
+        return api.notify(title, msg)
+
+    win.expose(get_stats, resize, quit, speak, play_alert, notify)
+
+    visible = {"v": True}
+
+    def toggle_window():
+        try:
+            if visible["v"]:
+                win.hide()
+            else:
+                win.show()
+            visible["v"] = not visible["v"]
+        except Exception:
+            pass
+
+    api.tray = Tray(on_toggle=toggle_window, on_quit=lambda: api.quit())
+
+    def _start(w):
+        api.tray.start()
+
+    webview.start(_start, win)
 
 
 if __name__ == "__main__":

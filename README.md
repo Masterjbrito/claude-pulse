@@ -4,7 +4,7 @@ A tiny always-on-top desktop widget for Windows that monitors your **Claude Code
 
 > **English** · [Português](#-português) · [Español](#-español) · [Français](#-français) · [Deutsch](#-deutsch)
 
-<!-- screenshot: add docs/screenshot.png and restore the image line -->
+![Claude Pulse — real quota meters, per-model limits and depletion forecast](docs/screenshot.png)
 
 
 ## Features
@@ -13,7 +13,9 @@ A tiny always-on-top desktop widget for Windows that monitors your **Claude Code
 - **API-equivalent cost** — what your usage *would* cost at API prices (you pay a flat subscription; this is a volume ruler, not a bill)
 - **Per-model breakdown** — Opus, Sonnet, Haiku, … with input/output/cache tokens
 - **Top 10 projects** — see which project burns the most quota this month
-- **14-day sparkline**, auto-refresh every 30 s
+- **Depletion forecast** — "at this pace, your weekly quota runs out Mon 08:43"
+- **System tray icon** showing the weekly % (turns red ≥80%), with native toast notifications on alerts
+- **14-day sparkline** + last-8-weeks history chart, auto-refresh every 30 s
 - **Sound alerts** at 80% (soft) and 95% (urgent) of any limit — mutable 🔕
 - **5 color themes** (amber, matrix, ice, magma, paper) — click ◐ to cycle
 - **5 languages** (EN, PT, ES, FR, DE) — auto-detected, click the language code to cycle
