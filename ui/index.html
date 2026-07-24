@@ -70,6 +70,18 @@
 
   .hint{margin-top:8px;text-align:center;font-size:9px;color:var(--amber-dim);cursor:pointer;letter-spacing:.1em}
   .hint:hover{color:var(--amber)}
+
+  .thr{width:34px;background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:3px;font-size:10px;padding:1px 3px;text-align:right}
+  /* mini mode: so a % semanal */
+  body.minimode #app > :not(.hdr){display:none !important}
+  body.minimode .hdr .t,body.minimode .hdr .clock,body.minimode #export,
+  body.minimode #themebtn,body.minimode #lang,body.minimode #mute{display:none}
+  body.minimode #app{padding:6px 8px}
+  #minipct{display:none}
+  body.minimode #minipct{display:block;font-size:30px;text-align:center;
+    color:var(--amber);cursor:pointer;text-shadow:0 0 12px rgba(255,180,84,.3);line-height:1.1}
+  body.minimode #minipct small{font-size:12px;color:var(--amber-dim)}
 </style>
 </head>
 <body>
@@ -77,11 +89,15 @@
   <div class="hdr">
     <span class="dot"></span><span class="t">Claude Pulse</span>
     <span class="clock mono" id="clock"></span>
+    <span class="x" id="export" title="Export CSV/JSON">⇩</span>
+    <span class="x" id="mini" title="Mini">▫</span>
     <span class="x" id="mute" title="Sons"></span>
     <span class="x" id="themebtn" title="Tema">◐</span>
     <span class="x mono" id="lang" title="Idioma" style="font-size:9px;letter-spacing:.1em"></span>
     <span class="x" id="quit" title="✕">✕</span>
   </div>
+
+  <div id="minipct" class="mono" title="Claude Pulse">—</div>
 
   <div class="row">
     <div>
@@ -110,6 +126,15 @@
     </table>
     <div class="lbl" style="margin-top:10px" data-i18n="weeks8"></div>
     <div class="spark" id="weeks" style="height:30px;margin-top:4px"></div>
+    <div class="tok" style="margin-top:10px;align-items:center">
+      <span data-i18n="alerts"></span>
+      <b><input id="th1" type="number" min="1" max="99" class="mono thr"> %</b>
+      <b><input id="th2" type="number" min="2" max="100" class="mono thr"> %</b>
+      <span class="mono" id="ver" style="margin-left:auto"></span>
+    </div>
+    <div id="upd" style="display:none;margin-top:6px;text-align:center;font-size:9px">
+      <a id="updlink" href="#" style="color:var(--hot)"></a>
+    </div>
   </div>
 
   <div class="hint" id="toggle">▾ detalhe</div>
@@ -125,27 +150,32 @@ const I18N = {
        modelMonth:'Modelo (mês)', projMonth:'Projeto (mês)', detail:'▾ detalhe', compact:'▴ compacto',
        session:'Sessão 5h', weekAll:'Semana · todos', week:'Semana', resets:'renova',
        loading:'a carregar…', gettingLimits:'a obter limites…', noUse:'sem uso este mês', today:'hoje',
-       runsOut:'a este ritmo, esgota', weeks8:'últimas 8 semanas', alertT:'Alerta de quota'},
+       runsOut:'a este ritmo, esgota', weeks8:'últimas 8 semanas', alertT:'Alerta de quota',
+       alerts:'alertas', exported:'Exportado para'},
   en: {weekQuota:'weekly quota used', todayApi:'today · API equiv.', monthApi:'month · API equiv.',
        modelMonth:'Model (month)', projMonth:'Project (month)', detail:'▾ details', compact:'▴ compact',
        session:'5h session', weekAll:'Week · all', week:'Week', resets:'resets',
        loading:'loading…', gettingLimits:'fetching limits…', noUse:'no usage this month', today:'today',
-       runsOut:'at this pace, runs out', weeks8:'last 8 weeks', alertT:'Quota alert'},
+       runsOut:'at this pace, runs out', weeks8:'last 8 weeks', alertT:'Quota alert',
+       alerts:'alerts', exported:'Exported to'},
   es: {weekQuota:'cuota semanal usada', todayApi:'hoy · equiv. API', monthApi:'mes · equiv. API',
        modelMonth:'Modelo (mes)', projMonth:'Proyecto (mes)', detail:'▾ detalle', compact:'▴ compacto',
        session:'Sesión 5h', weekAll:'Semana · todos', week:'Semana', resets:'renueva',
        loading:'cargando…', gettingLimits:'obteniendo límites…', noUse:'sin uso este mes', today:'hoy',
-       runsOut:'a este ritmo, se agota', weeks8:'últimas 8 semanas', alertT:'Alerta de cuota'},
+       runsOut:'a este ritmo, se agota', weeks8:'últimas 8 semanas', alertT:'Alerta de cuota',
+       alerts:'alertas', exported:'Exportado a'},
   fr: {weekQuota:'quota hebdo utilisé', todayApi:'aujourd\'hui · équiv. API', monthApi:'mois · équiv. API',
        modelMonth:'Modèle (mois)', projMonth:'Projet (mois)', detail:'▾ détails', compact:'▴ compact',
        session:'Session 5h', weekAll:'Semaine · tous', week:'Semaine', resets:'réinit.',
        loading:'chargement…', gettingLimits:'récupération des limites…', noUse:'aucun usage ce mois', today:'auj.',
-       runsOut:'à ce rythme, épuisé', weeks8:'8 dernières semaines', alertT:'Alerte quota'},
+       runsOut:'à ce rythme, épuisé', weeks8:'8 dernières semaines', alertT:'Alerte quota',
+       alerts:'alertes', exported:'Exporté vers'},
   de: {weekQuota:'Wochenkontingent genutzt', todayApi:'heute · API-Äquiv.', monthApi:'Monat · API-Äquiv.',
        modelMonth:'Modell (Monat)', projMonth:'Projekt (Monat)', detail:'▾ Details', compact:'▴ kompakt',
        session:'5h-Sitzung', weekAll:'Woche · alle', week:'Woche', resets:'reset',
        loading:'lädt…', gettingLimits:'Limits werden geladen…', noUse:'keine Nutzung diesen Monat', today:'heute',
-       runsOut:'bei diesem Tempo, erschöpft', weeks8:'letzte 8 Wochen', alertT:'Kontingent-Alarm'},
+       runsOut:'bei diesem Tempo, erschöpft', weeks8:'letzte 8 Wochen', alertT:'Kontingent-Alarm',
+       alerts:'Alarme', exported:'Exportiert nach'},
 };
 const LANGS = Object.keys(I18N);
 let lang = localStorage.getItem('cp-lang')
@@ -181,7 +211,9 @@ const kf = x => { const n = Number(x) || 0; return n >= 1e6 ? (n/1e6).toFixed(1)
 
 /* ---------- sons de alerta ---------- */
 let muted = localStorage.getItem('cp-muted') === '1';
-const alerted = {};   // kind -> ultimo patamar alertado (80 | 95)
+// thresholds configuraveis (defaults 80/95)
+let TH1 = +(localStorage.getItem('cp-th1') || 80), TH2 = +(localStorage.getItem('cp-th2') || 95);
+const alerted = {};   // kind -> ultimo patamar alertado
 function beep(urgent){
   if (muted) return;
   try {
@@ -201,7 +233,7 @@ function beep(urgent){
 function checkAlerts(limits){
   for (const lim of limits){
     const k = lim.kind + (lim.model || '');
-    const level = lim.pct >= 95 ? 95 : lim.pct >= 80 ? 80 : 0;
+    const level = lim.pct >= TH2 ? 95 : lim.pct >= TH1 ? 80 : 0;
     if (level > (alerted[k] || 0)) {
       alerted[k] = level;
       beep(level === 95);
@@ -379,6 +411,14 @@ async function refresh(){
   loaded = true;
   const wkLim = s.limits ? s.limits.find(l => l.kind === 'weekly_all') : null;
   const wk = wkLim ? wkLim.pct : null;
+  $('minipct').innerHTML = wk !== null ? `${Math.round(wk)}<small>%</small>` : '—';
+  $('minipct').style.color = wk >= TH1 ? 'var(--hot)' : 'var(--amber)';
+  if (s.version) $('ver').textContent = 'v' + s.version;
+  if (s.update) {
+    $('upd').style.display = 'block';
+    $('updlink').textContent = `⬆ v${s.update.latest} available — github.com/${'Masterjbrito/claude-pulse'}`;
+    $('updlink').onclick = e => { e.preventDefault(); };
+  }
   $('weekpct').innerHTML = wk !== null
     ? `${Math.round(wk)}<small>%</small>` : '—';
   $('weekpct').style.color = wk >= 80 ? 'var(--hot)' : 'var(--amber)';
@@ -456,7 +496,61 @@ $('mute').onclick = () => {
   paintMute();
   if (!muted) beep(false);   // feedback ao reativar
 };
+// thresholds
+$('th1').value = TH1; $('th2').value = TH2;
+$('th1').onchange = () => { TH1 = Math.min(99, Math.max(1, +$('th1').value || 80)); localStorage.setItem('cp-th1', TH1); };
+$('th2').onchange = () => { TH2 = Math.min(100, Math.max(TH1+1, +$('th2').value || 95)); $('th2').value = TH2; localStorage.setItem('cp-th2', TH2); };
+
+// export CSV/JSON
+$('export').onclick = async () => {
+  try {
+    const dest = await pywebview.api.export_data();
+    pywebview.api.notify('Claude Pulse', `${t('exported')} ${dest}`);
+  } catch(e){}
+};
+
+// mini mode
+const H_MINI = 92;
+let mini = localStorage.getItem('cp-mini') === '1';
+function applyMini(){
+  document.body.classList.toggle('minimode', mini);
+  localStorage.setItem('cp-mini', mini ? '1' : '0');
+  pywebview.api.resize(mini ? 120 : 372, mini ? H_MINI : (open ? H_FULL : H_COMPACT) + extraH);
+}
+$('mini').onclick = () => { mini = true; applyMini(); };
+$('minipct').onclick = () => { mini = false; applyMini(); };
+
 applyTheme(); applyLang(); paintMute();
+if (mini) window.addEventListener('pywebviewready', () => setTimeout(applyMini, 300));
+
+/* ---------- modo demo (?demo=1): dados fictícios p/ screenshots e dev sem backend ---------- */
+if (location.search.includes('demo')) {
+  const DEMO = {
+    today: 214.37, month: 8412.90, total: 15211.44, now: '14:07', version: '1.2.0', update: null,
+    today_tokens: {in: 41200, out: 512000, cw: 3_100_000, cr: 96_400_000},
+    days: Array.from({length:14},(_,i)=>({d:`2026-07-${(i+9)}`, c: 120+((i*97)%390)})),
+    weeks: Array.from({length:8},(_,i)=>({w:`2026-W${23+i}`, c: 1400+((i*631)%2600)})),
+    models: [
+      {name:'Opus', cost:6120.11, in:1_200_000, out:7_800_000, cw:3_000_000_000, cr:900_000_000},
+      {name:'Fable', cost:1704.62, in:700_000, out:2_600_000, cw:700_000_000, cr:220_000_000},
+      {name:'Sonnet', cost:498.17, in:520_000, out:410_000, cw:280_000_000, cr:80_000_000},
+      {name:'Haiku', cost:90.00, in:9_000, out:6_000, cw:12_000_000, cr:2_000_000}],
+    projects: [
+      {name:'orbital-dashboard', cost:3411.02},{name:'atlas-api', cost:1922.55},
+      {name:'nebula-app', cost:1544.19},{name:'quantum-cli', cost:801.44},{name:'pixel-forge', cost:433.70}],
+    limits: [
+      {kind:'session', model:null, pct:37, resets_at:'2026-07-24T19:00:00Z'},
+      {kind:'weekly_all', model:null, pct:63, resets_at:'2026-07-28T22:00:00Z'},
+      {kind:'weekly_scoped', model:'Fable', pct:31, resets_at:'2026-07-28T22:00:00Z'}],
+    forecast: '2026-07-27T09:40:00Z',
+  };
+  window.pywebview = {api: {
+    get_stats: async () => DEMO, resize: async () => {}, quit: () => {},
+    speak: async () => true, play_alert: async () => true, notify: async () => true,
+    export_data: async () => 'C:/Users/demo/Downloads',
+  }};
+  setTimeout(() => window.dispatchEvent(new Event('pywebviewready')), 50);
+}
 
 window.addEventListener('pywebviewready', () => {
   refresh();

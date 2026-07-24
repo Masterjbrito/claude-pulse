@@ -20,6 +20,9 @@ from pathlib import Path
 import requests
 import webview
 
+VERSION = "1.2.0"
+REPO = "Masterjbrito/claude-pulse"
+
 CLAUDE_DIR = Path.home() / ".claude"
 PROJECTS_DIR = CLAUDE_DIR / "projects"
 CREDS_FILE = CLAUDE_DIR / ".credentials.json"
@@ -320,8 +323,21 @@ class Api:
         self._limits_ts = 0
         self.window = None
         self.tray = None
+        self._update = None
+        threading.Thread(target=self._check_update, daemon=True).start()
         try:  # ultimo valor conhecido (sobrevive a restarts e a 429s)
             self._limits = json.loads(LIMITS_CACHE.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+
+    def _check_update(self):
+        """Verifica no GitHub se ha versao mais recente (1x por arranque)."""
+        try:
+            r = requests.get(f"https://api.github.com/repos/{REPO}/releases/latest", timeout=10)
+            tag = (r.json().get("tag_name") or "").lstrip("v")
+            if tag and tuple(map(int, tag.split("."))) > tuple(map(int, VERSION.split("."))):
+                self._update = {"latest": tag,
+                                "url": f"https://github.com/{REPO}/releases/latest"}
         except Exception:
             pass
 
@@ -390,6 +406,8 @@ class Api:
             "projects": [{"name": k, "cost": round(v, 2)}
                          for k, v in sorted(projs_month.items(), key=lambda x: -x[1])[:10]],
             "weeks": [{"w": w, "c": round(c, 2)} for w, c in sorted(weeks.items())[-8:]],
+            "version": VERSION,
+            "update": self._update,
             "forecast": forecast_depletion(self._limits),
             "limits": self._limits,
             "now": now.strftime("%H:%M"),
@@ -405,6 +423,32 @@ class Api:
         path = str(random.choice(options))
         threading.Thread(target=_play_mp3, args=(path,), daemon=True).start()
         return True
+
+    def export_data(self):
+        """Exporta agregados para JSON + CSV (Downloads ou pasta do script)."""
+        import csv
+        recs = self.store.records()
+        by_day_model = defaultdict(lambda: {"in": 0, "out": 0, "cw": 0, "cr": 0, "cost": 0.0})
+        for r in recs:
+            k = (r["day"], short_model(r["model"]), r["proj"])
+            m = by_day_model[k]
+            for f in ("in", "out", "cw", "cr"):
+                m[f] += r[f]
+            m["cost"] += cost_of(r)
+        rows = [{"day": d, "model": mo, "project": p, **{k2: (round(v2, 4) if k2 == "cost" else v2) for k2, v2 in v.items()}}
+                for (d, mo, p), v in sorted(by_day_model.items())]
+        dest = Path.home() / "Downloads"
+        if not dest.is_dir():
+            dest = Path(__file__).parent
+        stamp = datetime.now().strftime("%Y%m%d-%H%M")
+        jpath = dest / f"claude-pulse-export-{stamp}.json"
+        cpath = dest / f"claude-pulse-export-{stamp}.csv"
+        jpath.write_text(json.dumps(rows, indent=1), encoding="utf-8")
+        with open(cpath, "w", newline="", encoding="utf-8") as f:
+            w = csv.DictWriter(f, fieldnames=["day", "model", "project", "in", "out", "cw", "cr", "cost"])
+            w.writeheader()
+            w.writerows(rows)
+        return str(dest)
 
     def notify(self, title, msg):
         if self.tray:
@@ -463,7 +507,10 @@ def main():
     def notify(title, msg):
         return api.notify(title, msg)
 
-    win.expose(get_stats, resize, quit, speak, play_alert, notify)
+    def export_data():
+        return api.export_data()
+
+    win.expose(get_stats, resize, quit, speak, play_alert, notify, export_data)
 
     visible = {"v": True}
 

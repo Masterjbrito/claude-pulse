@@ -1,0 +1,47 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e5]: Claude Pulse
+    - generic [ref=e6]: 14:07
+    - generic "Export CSV/JSON" [ref=e7] [cursor=pointer]: ⇩
+    - generic "Mini" [ref=e8] [cursor=pointer]: ▫
+    - generic "Sons" [ref=e9] [cursor=pointer]: 🔔
+    - generic "Tema" [ref=e10] [cursor=pointer]: ◐
+    - generic "Idioma" [ref=e11] [cursor=pointer]: EN
+    - generic "✕" [ref=e12] [cursor=pointer]
+  - generic [ref=e13]:
+    - generic [ref=e14]:
+      - generic [ref=e15]: 63%
+      - generic [ref=e16]: weekly quota used
+    - generic [ref=e17]:
+      - 'generic "2026-07-9: $120" [ref=e18]'
+      - 'generic "2026-07-10: $217" [ref=e19]'
+      - 'generic "2026-07-11: $314" [ref=e20]'
+      - 'generic "2026-07-12: $411" [ref=e21]'
+      - 'generic "2026-07-13: $508" [ref=e22]'
+      - 'generic "2026-07-14: $215" [ref=e23]'
+      - 'generic "2026-07-15: $312" [ref=e24]'
+      - 'generic "2026-07-16: $409" [ref=e25]'
+      - 'generic "2026-07-17: $506" [ref=e26]'
+      - 'generic "2026-07-18: $213" [ref=e27]'
+      - 'generic "2026-07-19: $310" [ref=e28]'
+      - 'generic "2026-07-20: $407" [ref=e29]'
+      - 'generic "2026-07-21: $504" [ref=e30]'
+      - 'generic "2026-07-22: $211" [ref=e31]'
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]: 5h session
+        - generic [ref=e36]: 37%
+      - generic [ref=e62]: resets 24/07 20:00
+    - generic [ref=e63]:
+      - generic [ref=e64]:
+        - generic [ref=e65]: Week · all
+        - generic [ref=e66]: 63%
+      - generic [ref=e92]: resets 28/07 23:00
+    - generic [ref=e93]:
+      - generic [ref=e94]:
+        - generic [ref=e95]: Week · Fable
+        - generic [ref=e96]: 31%
+      - generic [ref=e122]: resets 28/07 23:00
+  - generic [ref=e123]: ⚠ at this pace, runs out Mon 27/07 10:40
+  - generic [ref=e124] [cursor=pointer]: ▾ details

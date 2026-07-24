@@ -1,10 +1,17 @@
 # 🟠 Claude Pulse
 
+[![CI](https://github.com/Masterjbrito/claude-pulse/actions/workflows/ci.yml/badge.svg)](https://github.com/Masterjbrito/claude-pulse/actions)
+[![GitHub stars](https://img.shields.io/github/stars/Masterjbrito/claude-pulse?style=flat&color=FFB454)](https://github.com/Masterjbrito/claude-pulse/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2E2721.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-FFB454.svg)](https://python.org)
+
 A tiny always-on-top desktop widget for Windows that monitors your **Claude Code** usage in real time — quota limits, per-model and per-project spend, with sound alerts.
 
 > **English** · [Português](#-português) · [Español](#-español) · [Français](#-français) · [Deutsch](#-deutsch)
 
 ![Claude Pulse — real quota meters, per-model limits and depletion forecast](docs/screenshot.png)
+
+![Demo — compact, expanded, themes and mini mode](docs/demo.gif)
 
 
 ## Features
@@ -16,7 +23,10 @@ A tiny always-on-top desktop widget for Windows that monitors your **Claude Code
 - **Depletion forecast** — "at this pace, your weekly quota runs out Mon 08:43"
 - **System tray icon** showing the weekly % (turns red ≥80%), with native toast notifications on alerts
 - **14-day sparkline** + last-8-weeks history chart, auto-refresh every 30 s
-- **Sound alerts** at 80% (soft) and 95% (urgent) of any limit — mutable 🔕
+- **Sound alerts** at 80% (soft) and 95% (urgent) of any limit — thresholds configurable in-app, mutable 🔕
+- **Mini mode** ▫ — shrink to a tiny draggable % badge
+- **CSV/JSON export** ⇩ — day × model × project aggregates straight to your Downloads
+- **Auto-update check** — a link appears when a newer release is out
 - **5 color themes** (amber, matrix, ice, magma, paper) — click ◐ to cycle
 - **5 languages** (EN, PT, ES, FR, DE) — auto-detected, click the language code to cycle
 - Frameless, draggable, always-on-top, ~30 MB RAM
@@ -38,6 +48,15 @@ Manual run:
 pip install -r requirements.txt
 python claude_pulse.py
 ```
+
+Or via pipx:
+
+```bash
+pipx install git+https://github.com/Masterjbrito/claude-pulse
+claude-pulse
+```
+
+Developing the UI without a backend? Open `ui/index.html?demo=1` in any browser for fake data.
 
 On startup the widget **speaks a short voice summary** of your quotas (in your language); mute 🔕 disables both sounds and voice.
 
@@ -96,6 +115,12 @@ Widget de bureau (Windows) toujours visible qui surveille l'utilisation de **Cla
 ## 🇩🇪 Deutsch
 
 Immer sichtbares Desktop-Widget (Windows), das die Nutzung von **Claude Code** in Echtzeit überwacht: echte Limit-Anzeigen (5h-Sitzung, wöchentlich und pro Modell), API-äquivalente Kosten, Nutzung pro Modell und Projekt, Tonwarnungen bei 80%/95% (stummschaltbar), 5 Farbthemen und 5 Sprachen.
+
+---
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Masterjbrito/claude-pulse&type=Date)](https://star-history.com/#Masterjbrito/claude-pulse&Date)
 
 ---
 
