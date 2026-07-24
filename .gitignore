@@ -4,3 +4,4 @@ docs/superpowers/
 # soundbites pessoais (direitos de autor — nao distribuir)
 sounds/
 limits_cache.json
+.playwright-mcp/
