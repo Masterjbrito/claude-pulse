@@ -169,7 +169,7 @@ function applyTheme(){
 
 const $ = id => document.getElementById(id);
 const fmt = v => { const [i,d] = v.toFixed(2).split('.'); return `$${i}<small>.${d}</small>`; };
-const kf = n => n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'k' : n;
+const kf = x => { const n = Number(x) || 0; return n >= 1e6 ? (n/1e6).toFixed(1)+'M' : n >= 1e3 ? (n/1e3).toFixed(0)+'k' : String(n); };
 
 /* ---------- sons de alerta ---------- */
 let muted = localStorage.getItem('cp-muted') === '1';
@@ -341,7 +341,7 @@ function limName(lim){
 
 function vu(lim){
   if(!lim) return '';
-  const name = limName(lim);
+  const name = esc(limName(lim));
   const on = Math.round(SEGS * Math.min(lim.pct,100) / 100);
   let segs = '';
   for(let i=0;i<SEGS;i++){
