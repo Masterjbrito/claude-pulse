@@ -548,4 +548,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception:
+        import traceback
+        crash = Path(__file__).parent / "crash.log"
+        with open(crash, "a", encoding="utf-8") as f:
+            f.write(f"\n--- {datetime.now().isoformat()} ---\n")
+            f.write(traceback.format_exc())
+        raise

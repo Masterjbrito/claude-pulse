@@ -6,3 +6,4 @@ sounds/
 limits_cache.json
 .playwright-mcp/
 claude-pulse-export-*
+crash.log
