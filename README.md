@@ -86,6 +86,13 @@ Alerts speak witty phrases by default. If you prefer your own sound clips, creat
 
 The folder is gitignored — bring your own audio (mind copyright if you redistribute).
 
+## Troubleshooting
+
+- **Widget "disappeared"?** Check the system tray first — clicking the tray icon toggles show/hide. If the icon is gone too, double-click `ClaudePulse.vbs` to relaunch and check `crash.log` next to the script for the cause.
+- **Frozen after PC sleep?** Fixed in v1.2.1+ (WebView2 timer throttling disabled + backend heartbeat). Update if you're on an older version.
+- **Always launch via `ClaudePulse.vbs`** (or the startup entry the installer creates) — launching from a terminal ties the widget to that terminal's lifetime.
+- **"limits unavailable"?** Temporary rate-limit or offline; last known values are kept and it recovers automatically within ~5 min.
+
 ## Limitations
 
 - Covers **Claude Code** (VS Code / terminal) only — the Claude desktop chat app does not expose usage data
