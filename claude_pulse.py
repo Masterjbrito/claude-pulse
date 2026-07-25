@@ -17,6 +17,12 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+try:  # usa a cert store do SO (necessario em redes empresariais com proxy TLS)
+    import truststore
+    truststore.inject_into_ssl()
+except ImportError:
+    pass
+
 import requests
 import webview
 

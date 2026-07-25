@@ -3,3 +3,4 @@ requests>=2.31
 edge-tts>=6.1
 pystray>=0.19
 pillow>=10.0
+truststore>=0.8
