@@ -203,3 +203,45 @@ def test_export_data(api, tmp_path, monkeypatch):
     assert any(f.suffix == ".json" for f in files)
     data = json.loads(next(f for f in files if f.suffix == ".json").read_text(encoding="utf-8"))
     assert data and {"day", "model", "project", "cost"} <= set(data[0])
+
+
+# ---------- limites cache: formato retroativo ----------
+
+def test_limits_cache_backward_compat(tmp_path, monkeypatch):
+    # escreve um ficheiro LIMITS_CACHE em formato antigo (lista JSON)
+    cache_file = tmp_path / "limits_cache.json"
+    cache_file.write_text(
+        json.dumps([{"kind": "weekly_all", "pct": 50, "resets_at": "2026-07-28T22:00:00Z"}]),
+        encoding="utf-8")
+
+    projects = tmp_path / "projects"
+    projects.mkdir(parents=True)
+
+    monkeypatch.setattr(cp, "LIMITS_CACHE", cache_file)
+    monkeypatch.setattr(cp, "PROJECTS_DIR", projects)
+    monkeypatch.setattr(cp.Api, "_check_update", lambda self: None)
+
+    api = cp.Api()
+    assert api._limits is not None
+    assert api._limits[0]["kind"] == "weekly_all"
+    assert api._limits_at == 0.0
+
+
+def test_limits_cache_new_format(tmp_path, monkeypatch):
+    # escreve um ficheiro LIMITS_CACHE em formato novo (dict com fetched_at e limits)
+    cache_file = tmp_path / "limits_cache.json"
+    cache_file.write_text(
+        json.dumps({"fetched_at": 123.0, "limits": [{"kind": "session", "pct": 5, "resets_at": "2026-07-24T19:00:00Z"}]}),
+        encoding="utf-8")
+
+    projects = tmp_path / "projects"
+    projects.mkdir(parents=True)
+
+    monkeypatch.setattr(cp, "LIMITS_CACHE", cache_file)
+    monkeypatch.setattr(cp, "PROJECTS_DIR", projects)
+    monkeypatch.setattr(cp.Api, "_check_update", lambda self: None)
+
+    api = cp.Api()
+    assert api._limits is not None
+    assert api._limits[0]["kind"] == "session"
+    assert api._limits_at == 123.0

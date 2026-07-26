@@ -151,31 +151,31 @@ const I18N = {
        session:'Sessão 5h', weekAll:'Semana · todos', week:'Semana', resets:'renova',
        loading:'a carregar…', gettingLimits:'a obter limites…', noUse:'sem uso este mês', today:'hoje',
        runsOut:'a este ritmo, esgota', weeks8:'últimas 8 semanas', alertT:'Alerta de quota',
-       alerts:'alertas', exported:'Exportado para'},
+       alerts:'alertas', exported:'Exportado para', stale:'dados de'},
   en: {weekQuota:'weekly quota used', todayApi:'today · API equiv.', monthApi:'month · API equiv.',
        modelMonth:'Model (month)', projMonth:'Project (month)', detail:'▾ details', compact:'▴ compact',
        session:'5h session', weekAll:'Week · all', week:'Week', resets:'resets',
        loading:'loading…', gettingLimits:'fetching limits…', noUse:'no usage this month', today:'today',
        runsOut:'at this pace, runs out', weeks8:'last 8 weeks', alertT:'Quota alert',
-       alerts:'alerts', exported:'Exported to'},
+       alerts:'alerts', exported:'Exported to', stale:'data from'},
   es: {weekQuota:'cuota semanal usada', todayApi:'hoy · equiv. API', monthApi:'mes · equiv. API',
        modelMonth:'Modelo (mes)', projMonth:'Proyecto (mes)', detail:'▾ detalle', compact:'▴ compacto',
        session:'Sesión 5h', weekAll:'Semana · todos', week:'Semana', resets:'renueva',
        loading:'cargando…', gettingLimits:'obteniendo límites…', noUse:'sin uso este mes', today:'hoy',
        runsOut:'a este ritmo, se agota', weeks8:'últimas 8 semanas', alertT:'Alerta de cuota',
-       alerts:'alertas', exported:'Exportado a'},
+       alerts:'alertas', exported:'Exportado a', stale:'datos de'},
   fr: {weekQuota:'quota hebdo utilisé', todayApi:'aujourd\'hui · équiv. API', monthApi:'mois · équiv. API',
        modelMonth:'Modèle (mois)', projMonth:'Projet (mois)', detail:'▾ détails', compact:'▴ compact',
        session:'Session 5h', weekAll:'Semaine · tous', week:'Semaine', resets:'réinit.',
        loading:'chargement…', gettingLimits:'récupération des limites…', noUse:'aucun usage ce mois', today:'auj.',
        runsOut:'à ce rythme, épuisé', weeks8:'8 dernières semaines', alertT:'Alerte quota',
-       alerts:'alertes', exported:'Exporté vers'},
+       alerts:'alertes', exported:'Exporté vers', stale:'données de'},
   de: {weekQuota:'Wochenkontingent genutzt', todayApi:'heute · API-Äquiv.', monthApi:'Monat · API-Äquiv.',
        modelMonth:'Modell (Monat)', projMonth:'Projekt (Monat)', detail:'▾ Details', compact:'▴ kompakt',
        session:'5h-Sitzung', weekAll:'Woche · alle', week:'Woche', resets:'reset',
        loading:'lädt…', gettingLimits:'Limits werden geladen…', noUse:'keine Nutzung diesen Monat', today:'heute',
        runsOut:'bei diesem Tempo, erschöpft', weeks8:'letzte 8 Wochen', alertT:'Kontingent-Alarm',
-       alerts:'Alarme', exported:'Exportiert nach'},
+       alerts:'Alarme', exported:'Exportiert nach', stale:'Daten von'},
 };
 const LANGS = Object.keys(I18N);
 let lang = localStorage.getItem('cp-lang')
@@ -435,6 +435,9 @@ async function refresh(){
     $('limits').innerHTML = s.limits.map(vu).join('');
     checkAlerts(s.limits);
     speakSummary(s.limits);
+    if (s.limits_age != null && s.limits_age > 900) {
+      $('limits').innerHTML += `<div class="nolim">⟳ ${t('stale')} ${new Date(Date.now() - s.limits_age*1000).toLocaleTimeString(undefined,{hour:'2-digit',minute:'2-digit'})}</div>`;
+    }
     const eh = Math.max(0, s.limits.length - 2) * 46;
     if (eh !== extraH) { extraH = eh; pywebview.api.resize(372, (open ? H_FULL : H_COMPACT) + extraH); }
   } else {

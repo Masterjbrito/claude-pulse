@@ -326,13 +326,21 @@ class Api:
     def __init__(self):
         self.store = UsageStore()
         self._limits = None
+        self._limits_at = 0.0
         self._limits_ts = 0
         self.window = None
         self.tray = None
         self._update = None
         threading.Thread(target=self._check_update, daemon=True).start()
         try:  # ultimo valor conhecido (sobrevive a restarts e a 429s)
-            self._limits = json.loads(LIMITS_CACHE.read_text(encoding="utf-8"))
+            cached = json.loads(LIMITS_CACHE.read_text(encoding="utf-8"))
+            # compatibilidade retroativa: se for lista (formato antigo), converter
+            if isinstance(cached, list):
+                self._limits = cached
+                self._limits_at = 0.0
+            else:
+                self._limits = cached.get("limits")
+                self._limits_at = cached.get("fetched_at", 0.0)
         except Exception:
             pass
 
@@ -351,10 +359,16 @@ class Api:
         lim = fetch_limits()
         if lim:  # em erro (ex. 429) mantem os ultimos valores conhecidos
             self._limits = lim
+            self._limits_at = time.time()
             try:
-                LIMITS_CACHE.write_text(json.dumps(lim), encoding="utf-8")
+                LIMITS_CACHE.write_text(
+                    json.dumps({"fetched_at": self._limits_at, "limits": lim}),
+                    encoding="utf-8")
             except Exception:
                 pass
+        else:
+            # falha -> tentar de novo em ~60s em vez de 5 min, importante no arranque do Windows quando a rede ainda nao esta pronta
+            self._limits_ts = time.time() - 240
 
     def get_stats(self):
         recs = self.store.records()
@@ -416,6 +430,7 @@ class Api:
             "update": self._update,
             "forecast": forecast_depletion(self._limits),
             "limits": self._limits,
+            "limits_age": (round(time.time() - self._limits_at) if self._limits and self._limits_at else None),
             "now": now.strftime("%H:%M"),
         }
 
